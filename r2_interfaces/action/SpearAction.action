@@ -1,0 +1,21 @@
+# SpearAction.action — 矛头机构控制动作
+# 用于准备区的矛头抓取和对接流程。
+# 控制对象：矛头夹爪、锁紧机构、伸缩机构
+# 设计约定:
+# - command 使用 uint8 常量，避免字符串拼写错误。
+
+uint8 CMD_IDLE=0
+uint8 CMD_PREPARE=1
+uint8 CMD_GRASP=2
+uint8 CMD_DOCK_EXTEND=3
+uint8 CMD_DOCK_RELEASE=4
+
+uint8 command
+float32 timeout_sec
+---
+bool success
+string message
+float32 elapsed_sec
+---
+int32 current_state  # 当前状态机状态码
+float32 progress     # 进度 (0.0 ~ 1.0)

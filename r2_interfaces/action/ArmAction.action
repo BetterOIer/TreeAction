@@ -1,0 +1,28 @@
+# ArmAction.action — 机械臂语义控制动作
+# 由 BT 决策层调用，由 r2_hardware Action Server 执行。
+# 设计约定:
+# - command 使用 uint8 常量，避免字符串拼写错误。
+# - wait_result=false 时立即返回，由 WaitArmIdle 节点轮询完成情况。
+
+uint8 CMD_IDLE=0
+uint8 CMD_GRASP=1
+uint8 CMD_STORE_TO_BODY=2
+uint8 CMD_STORE_ON_ARM=3
+uint8 CMD_GET_BODY=4
+uint8 CMD_PLACE_MID=5
+uint8 CMD_PLACE_HIGH=6
+uint8 CMD_SAFE_POSE=7
+uint8 CMD_PREPARE_GRASP=8
+
+uint8 command
+bool wait_result
+float32 timeout_sec
+---
+bool success
+string message
+int32 final_state
+float32 elapsed_sec
+---
+int32 current_state  # 当前状态机状态码
+float32 progress     # 进度 (0.0 ~ 1.0)
+string message

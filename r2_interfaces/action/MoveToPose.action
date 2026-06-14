@@ -1,0 +1,8 @@
+# MoveToPose.action — 底盘运动到目标位姿
+geometry_msgs/PoseStamped target_pose
+float32 max_speed
+---
+bool success
+string message
+---
+float32 distance_remaining

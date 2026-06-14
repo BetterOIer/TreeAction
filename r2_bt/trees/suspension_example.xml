@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!--
+  suspension_example.xml — 主动悬挂独立测试树
+
+  适用场景: 仅测试主动悬挂功能 (不涉及底盘移动、机械臂等其他模块)
+  说明: 直接执行一次 CLIMB_UP 动作 (mode=1, height=205mm)
+
+  启动示例:
+    ros2 launch r2_bt bt_engine.launch.py tree_file:=suspension_example.xml
+-->
+<root BTCPP_format="4" main_tree_to_execute="SuspensionExample">
+  <BehaviorTree ID="SuspensionExample">
+    <Sequence>
+      <SuspensionControl mode="1"
+                         direction="0"
+                         height="205.0"
+                         timeout_sec="30.0"
+                         message="{suspension_message}"
+                         final_state="{suspension_final_state}"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

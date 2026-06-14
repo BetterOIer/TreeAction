@@ -1,0 +1,94 @@
+cmake_minimum_required(VERSION 3.8)
+project(r2_bt)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
+find_package(r2_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
+#------------------------------------------------------------
+# BT nodes library (C++)
+#------------------------------------------------------------
+add_library(r2_bt_nodes SHARED
+  src/nodes/arm_action.cpp
+  src/nodes/is_segment_type.cpp
+  src/nodes/is_string_empty.cpp
+  src/nodes/is_string_non_empty.cpp
+  src/nodes/move_to_pose.cpp
+  src/nodes/pop_next_segment.cpp
+  src/nodes/retry_segment.cpp
+  src/nodes/set_debug_status.cpp
+  src/nodes/spear_action.cpp
+  src/nodes/suspension_control.cpp
+  src/nodes/wait_arm_idle.cpp
+  src/nodes/wait_for_r1_signal.cpp
+)
+
+target_include_directories(r2_bt_nodes PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(r2_bt_nodes
+  rclcpp
+  rclcpp_action
+  behaviortree_cpp
+  r2_interfaces
+  geometry_msgs
+)
+
+#------------------------------------------------------------
+# BT 引擎节点
+#------------------------------------------------------------
+add_executable(r2_bt_engine
+  src/bt_engine_node.cpp
+)
+
+target_include_directories(r2_bt_engine PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(r2_bt_engine
+  ament_index_cpp
+  rclcpp
+  rclcpp_action
+  behaviortree_cpp
+  r2_interfaces
+  std_msgs
+)
+
+target_link_libraries(r2_bt_engine r2_bt_nodes)
+target_link_libraries(r2_bt_engine nlohmann_json::nlohmann_json)
+
+#------------------------------------------------------------
+# 安装
+#------------------------------------------------------------
+install(TARGETS
+  r2_bt_nodes
+  r2_bt_engine
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY trees DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+
+install(DIRECTORY include/
+  DESTINATION include)
+
+ament_export_include_directories(include)
+ament_export_libraries(r2_bt_nodes)
+
+ament_package()
