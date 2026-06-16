@@ -1,5 +1,6 @@
 #include "r2_bt/nodes/actions/pop_next_segment.hpp"
 
+#include <cmath>
 #include <mutex>
 
 namespace r2_bt
@@ -28,6 +29,8 @@ BT::PortsList PopNextSegment::providedPorts()
     BT::OutputPort<uint8_t>("arm_command", "Arm action command (uint8)"),
     BT::OutputPort<bool>("wait_result", "Whether to block until arm action completes"),
     BT::OutputPort<uint8_t>("spear_command", "Spear action command (uint8)"),
+    BT::OutputPort<double>("height_diff", "Height diff for GRASP suspension (mm). Absolute value."),
+    BT::OutputPort<int>("grasp_suspension_mode", "Suspension mode for GRASP: 0=no-op, 1=UP, 2=DOWN"),
   };
 }
 
@@ -85,6 +88,17 @@ BT::NodeStatus PopNextSegment::tryPop()
   setOutput("arm_command", segment.arm_command);
   setOutput("wait_result", segment.wait_result);
   setOutput("spear_command", segment.spear_command);
+
+  // GRASP 悬挂调整参数
+  double abs_height_diff = std::abs(segment.height_diff);
+  int grasp_suspension_mode = 0;
+  if (segment.height_diff > 0.0) {
+    grasp_suspension_mode = 1;  // UP
+  } else if (segment.height_diff < 0.0) {
+    grasp_suspension_mode = 2;  // DOWN
+  }
+  setOutput("height_diff", abs_height_diff);
+  setOutput("grasp_suspension_mode", grasp_suspension_mode);
 
   config().blackboard->set("current_segment_index", segment.index);
   config().blackboard->set("segment_type", segment.segment_type);

@@ -29,6 +29,7 @@ struct Segment
   uint8_t arm_command = 0;  // uint8 常量，对应 ArmAction.action 中的 CMD_*
   bool wait_result = true;
 
+  double height_diff = 0.0;   // 悬挂高度调整量 (mm)，用于 GRASP; 正=上升, 负=下降, 0=无需调整
   uint8_t spear_command = 0;  // uint8 常量，对应 SpearAction.action 中的 CMD_*
 };
 

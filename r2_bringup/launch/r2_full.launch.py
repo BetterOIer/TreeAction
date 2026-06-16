@@ -16,7 +16,8 @@ r2_full.launch.py — 真实机器人全系统启动
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -43,11 +44,17 @@ def generate_launch_description():
         default_value='/planning/segments',
         description='接收 Segment Plan 的 ROS2 Topic')
 
+    enable_translator_arg = DeclareLaunchArgument(
+        'enable_translator',
+        default_value='true',
+        description='启动 meilin_translator (订阅 /mf_action_seq，发布 /planning/segments)')
+
     return LaunchDescription([
         tree_file_arg,
         groot2_port_arg,
         tick_frequency_arg,
         segment_topic_arg,
+        enable_translator_arg,
 
         # ---- 底层: USB 桥接 (下位机通信) ----
         Node(
@@ -109,5 +116,23 @@ def generate_launch_description():
                 'tick_frequency': LaunchConfiguration('tick_frequency'),
                 'segment_topic': LaunchConfiguration('segment_topic'),
             }],
+        ),
+
+        # ---- 规划: 梅林翻译器 (外部 action sequence → segment JSON) ----
+        Node(
+            package='r2_planner',
+            executable='meilin_translator',
+            name='meilin_translator',
+            output='screen',
+            parameters=[{
+                'grid_size': 1.2,
+                'grid_origin': [1.2, 1.2],
+                'grasp_distance': 0.4,
+                'max_body_capacity': 3,
+                'is_red_zone': False,
+            }],
+            condition=IfCondition(
+                PythonExpression(["'", LaunchConfiguration('enable_translator'), "' == 'true'"])
+            ),
         ),
     ])

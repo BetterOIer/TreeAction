@@ -101,6 +101,7 @@ class MeilinTranslator(Node):
         self.current_height: float = 0.0  # 当前平台高度 (mm)
         self.current_row: int = 0  # 当前所在行
         self.current_col: int = 0  # 当前所在列
+        self._last_move_yaw: float = 0.0  # 上一次 move 的朝向，用于 fetch 位置匹配
         self.plan_counter: int = 0  # 计划 ID 计数器
 
     def callback(self, msg: Float32MultiArray) -> None:
@@ -222,25 +223,37 @@ class MeilinTranslator(Node):
         self.current_height = target_height
         self.current_row = row
         self.current_col = col
+        self._last_move_yaw = yaw
 
         return segments
 
     def _translate_fetch(
         self, row: int, col: int, height_diff: float, yaw: float
     ) -> List[Dict[str, Any]]:
-        """翻译 fetch 动作 → MOVE2 + GRASP + STORE"""
+        """翻译 fetch 动作 → (MOVE2?) + GRASP + STORE
+
+        如果 fetch 前已有 move 到达目标位置且朝向正确 (±0.05 rad),
+        则跳过 MOVE2 避免冗余移动。
+        """
         segments = []
 
-        # 1. 始终插入 MOVE2 到抓取位置
+        # 1. 检查是否需要 MOVE2: 如果已在前一个 move 到达目标则跳过
         grasp_pos = self._calculate_grasp_position(row, col, yaw)
-        segments.append({
-            "segment_type": "MOVE2",
-            "move_target": grasp_pos,
-            "max_speed": 0.5,
-            "timeout_sec": 30.0
-        })
+        position_matches = (
+            self.current_row == row and
+            self.current_col == col and
+            abs(normalize_angle(yaw - self._last_move_yaw)) < 0.05
+        )
 
-        # 2. GRASP
+        if not position_matches:
+            segments.append({
+                "segment_type": "MOVE2",
+                "move_target": grasp_pos,
+                "max_speed": 0.5,
+                "timeout_sec": 30.0
+            })
+
+        # 2. GRASP (始终生成，携带 height_diff 供 BT 引擎决定悬挂调整)
         segments.append({
             "segment_type": "GRASP",
             "height_diff": height_diff,

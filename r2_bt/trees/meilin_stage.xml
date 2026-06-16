@@ -23,11 +23,6 @@
                       target_yaw="{target_yaw}"
                       max_speed="{max_speed}"
                       timeout_sec="{timeout_sec}"
-                      kfs_x="{kfs_x}"
-                      kfs_y="{kfs_y}"
-                      kfs_z="{kfs_z}"
-                      kfs_yaw="{kfs_yaw}"
-                      kfs_id="{kfs_id}"
                       climb_mode="{climb_mode}"
                       climb_direction="{climb_direction}"
                       climb_height="{climb_height}"
@@ -51,11 +46,17 @@
         <Sequence>
           <IsSegmentType expected="GRASP" actual="{segment_type}"/>
           <RetrySegment num_attempts="3">
-            <ArmAction command="{arm_command}"
-                       kfs_id="{kfs_id}"
-                       wait_result="true"
-                       timeout_sec="{timeout_sec}"
-                       message="{last_error}"/>
+            <Sequence>
+              <SuspensionControl mode="{grasp_suspension_mode}"
+                                 direction="0"
+                                 height="{height_diff}"
+                                 timeout_sec="10.0"
+                                 message="{last_error}"/>
+              <ArmAction command="{arm_command}"
+                         wait_result="true"
+                         timeout_sec="{timeout_sec}"
+                         message="{last_error}"/>
+            </Sequence>
           </RetrySegment>
         </Sequence>
 
@@ -77,7 +78,6 @@
                             timeout_sec="{timeout_sec}"
                             error_msg="{last_error}"/>
                 <ArmAction command="{arm_command}"
-                           kfs_id="{kfs_id}"
                            wait_result="{wait_result}"
                            timeout_sec="{timeout_sec}"
                            message="{last_error}"/>
@@ -126,7 +126,6 @@
           <IsSegmentType expected="STORE1" actual="{segment_type}"/>
           <RetrySegment num_attempts="3">
             <ArmAction command="{arm_command}"
-                       kfs_id="{kfs_id}"
                        wait_result="{wait_result}"
                        timeout_sec="{timeout_sec}"
                        message="{last_error}"/>
@@ -137,7 +136,6 @@
           <IsSegmentType expected="STORE2" actual="{segment_type}"/>
           <RetrySegment num_attempts="3">
             <ArmAction command="{arm_command}"
-                       kfs_id="{kfs_id}"
                        wait_result="{wait_result}"
                        timeout_sec="{timeout_sec}"
                        message="{last_error}"/>
@@ -149,7 +147,6 @@
           <RetrySegment num_attempts="3">
             <Sequence>
               <ArmAction command="{arm_command}"
-                         kfs_id="{kfs_id}"
                          wait_result="true"
                          timeout_sec="{timeout_sec}"
                          message="{last_error}"/>

@@ -262,6 +262,7 @@ private:
           segment.timeout_sec = item.value("timeout_sec", 30.0);
           segment.arm_command = 1;  // CMD_GRASP
           segment.wait_result = true;
+          segment.height_diff = item.value("height_diff", 0.0);
         }
         else if (segment.segment_type == "CLIMB")
         {

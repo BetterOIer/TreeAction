@@ -122,10 +122,17 @@
       <Sequence>
         <IsSegmentType expected="GRASP" actual="{segment_type}"/>
         <RetrySegment num_attempts="3">
-          <ArmAction command="{arm_command}"
-                     wait_result="true"
-                     timeout_sec="{timeout_sec}"
-                     message="{last_error}"/>
+          <Sequence>
+            <SuspensionControl mode="{grasp_suspension_mode}"
+                               direction="0"
+                               height="{height_diff}"
+                               timeout_sec="10.0"
+                               message="{last_error}"/>
+            <ArmAction command="{arm_command}"
+                       wait_result="true"
+                       timeout_sec="{timeout_sec}"
+                       message="{last_error}"/>
+          </Sequence>
         </RetrySegment>
       </Sequence>
 
