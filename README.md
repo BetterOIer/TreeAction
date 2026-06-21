@@ -103,7 +103,12 @@ Tree 只暴露 planner 原始值（row/col/height/yaw），所有计算在 Move/
 onStart():
   1. 读取输入: move_row(int), move_col(int), target_height_mm, target_yaw
   2. 读取 meilin_config (MeilinConfigPtr) from blackboard
-  3. 读取当前状态: meilin_current_row/col/height/yaw, meilin_pose_is_cell_center（TODO: 后续从 odometry topic 读取）
+  3. 读取当前状态:
+       优先使用 /transformed/pose 的 map 系 base_link 位姿
+       world→nearest grid 得到 current_row/col
+       yaw 使用 PoseStamped.orientation
+       到格中心距离 <= meilin_cell_center_tolerance 时认为 pose_is_cell_center=true
+       定位未收到或超时则降级使用 blackboard 状态
   4. grid→world: target_x = origin_x + row × grid_size, target_y = origin_y + col × grid_size
   5. 爬台判断（如需 → onStart 直接发出）:
        height_diff = target_height_mm - current_height
@@ -287,6 +292,7 @@ BT 引擎同时订阅两个 topic：
 ```text
 /planning/segments        std_msgs/String          ← 准备区/竞技区（JSON，旧路径）
 /mf_action_seq            std_msgs/Float32MultiArray ← 梅林区（直接解析）
+/transformed/pose         geometry_msgs/PoseStamped ← map 系机器人中心/base_link 定位
 ```
 
 旧 JSON 路径支持以下 `segment_type`：

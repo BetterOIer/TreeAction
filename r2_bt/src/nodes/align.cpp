@@ -18,7 +18,7 @@ BT::PortsList Align::providedPorts()
     BT::InputPort<double>("target_yaw", "Target yaw angle in map frame (rad)"),
     BT::InputPort<double>("max_speed", "Max chassis speed (m/s), default 0.25"),
     BT::InputPort<double>("timeout_sec", 30.0, "Abort action after this many seconds"),
-    BT::InputPort<std::string>("server_name", "align", "ROS 2 action server name"),
+    BT::InputPort<std::string>("server_name", "move_to_pose", "ROS 2 action server name"),
     BT::OutputPort<std::string>("error_msg", "Error description on failure"),
   };
 }
@@ -65,7 +65,7 @@ BT::NodeStatus Align::onStart()
     return BT::NodeStatus::FAILURE;
   }
 
-  const std::string server_name = getInput<std::string>("server_name").value_or("align");
+  const std::string server_name = getInput<std::string>("server_name").value_or("move_to_pose");
 
   if (!action_client_)
   {
@@ -74,7 +74,7 @@ BT::NodeStatus Align::onStart()
 
   if (!action_client_->action_server_is_ready())
   {
-    error_msg_ = "Align action server '" + server_name + "' not available";
+    error_msg_ = "Motion_control_accurate action server '" + server_name + "' not available";
     RCLCPP_ERROR(node_->get_logger(), "[Align] %s", error_msg_.c_str());
     setOutput("error_msg", error_msg_);
     return BT::NodeStatus::FAILURE;

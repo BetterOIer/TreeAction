@@ -1,9 +1,9 @@
 #pragma once
 
 #include <behaviortree_cpp/action_node.h>
+#include <action_of_motion_interfaces/action/move_to_pose.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
-#include <r2_interfaces/action/align.hpp>
 
 #include <chrono>
 #include <mutex>
@@ -24,7 +24,7 @@ public:
   void onHalted() override;
 
 private:
-  using AlignAction = r2_interfaces::action::Align;
+  using AlignAction = action_of_motion_interfaces::action::MoveToPose;
   using GoalHandle = rclcpp_action::ClientGoalHandle<AlignAction>;
 
   rclcpp_action::Client<AlignAction>::SharedPtr action_client_;

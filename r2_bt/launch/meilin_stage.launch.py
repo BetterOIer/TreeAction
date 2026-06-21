@@ -55,6 +55,11 @@ def generate_launch_description():
         default_value='/mf_action_seq',
         description='接收梅林 move/fetch Float32MultiArray 的 ROS2 Topic')
 
+    meilin_pose_topic_arg = DeclareLaunchArgument(
+        'meilin_pose_topic',
+        default_value='/transformed/pose',
+        description='梅林 move 使用的 map 系 base_link 定位 PoseStamped Topic')
+
     is_red_zone_arg = DeclareLaunchArgument(
         'is_red_zone',
         default_value='false',
@@ -82,6 +87,7 @@ def generate_launch_description():
         tick_frequency_arg,
         segment_topic_arg,
         mf_action_topic_arg,
+        meilin_pose_topic_arg,
         is_red_zone_arg,
         grid_size_arg,
         grid_origin_arg,
@@ -100,6 +106,7 @@ def generate_launch_description():
                 'tick_frequency': LaunchConfiguration('tick_frequency'),
                 'segment_topic': LaunchConfiguration('segment_topic'),
                 'mf_action_topic': LaunchConfiguration('mf_action_topic'),
+                'meilin_pose_topic': LaunchConfiguration('meilin_pose_topic'),
                 'meilin_grid_size': LaunchConfiguration('grid_size'),
                 'meilin_grid_origin': LaunchConfiguration('grid_origin'),
                 'meilin_grasp_distance': LaunchConfiguration('grasp_distance'),

@@ -26,8 +26,9 @@ r2_meilin_sim.launch.py — 梅林赛段仿真启动
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -62,6 +63,11 @@ def generate_launch_description():
         default_value='/mf_action_seq',
         description='接收梅林 move/fetch Float32MultiArray 的 ROS2 Topic')
 
+    meilin_pose_topic_arg = DeclareLaunchArgument(
+        'meilin_pose_topic',
+        default_value='/transformed/pose',
+        description='梅林 move 使用的 map 系 base_link 定位 PoseStamped Topic')
+
     # ---- 梅林区几何参数（传给 BT 引擎）----
     is_red_zone_arg = DeclareLaunchArgument(
         'is_red_zone',
@@ -90,6 +96,7 @@ def generate_launch_description():
         tick_frequency_arg,
         segment_topic_arg,
         mf_action_topic_arg,
+        meilin_pose_topic_arg,
         is_red_zone_arg,
         grid_size_arg,
         grid_origin_arg,
@@ -107,15 +114,19 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ---- Action Server: 底盘导航 (MoveToPose + Align 共用) ----
+        # ---- Action Server: 底盘微调 (Motion_control_accurate) ----
         Node(
-            package='r2_hardware',
-            executable='move_to_pose_action_server',
-            name='move_to_pose_action_server',
+            package='action_of_motion',
+            executable='motion_action_node',
+            name='motion_action_node',
             output='screen',
-            parameters=[{
-                'relocation_topic': '/odom_world',
-            }],
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare('action_of_motion'),
+                    'config',
+                    'param.yaml',
+                ]),
+            ],
         ),
 
         # ---- Action Server: 主动悬挂 ----
@@ -159,6 +170,7 @@ def generate_launch_description():
                 'tick_frequency': LaunchConfiguration('tick_frequency'),
                 'segment_topic': LaunchConfiguration('segment_topic'),
                 'mf_action_topic': LaunchConfiguration('mf_action_topic'),
+                'meilin_pose_topic': LaunchConfiguration('meilin_pose_topic'),
                 'meilin_grid_size': LaunchConfiguration('grid_size'),
                 'meilin_grid_origin': LaunchConfiguration('grid_origin'),
                 'meilin_grasp_distance': LaunchConfiguration('grasp_distance'),

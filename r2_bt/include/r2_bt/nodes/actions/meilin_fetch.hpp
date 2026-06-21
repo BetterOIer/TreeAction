@@ -1,8 +1,14 @@
 #pragma once
 
 #include <behaviortree_cpp/action_node.h>
+#include <action_of_motion_interfaces/action/move_to_pose.hpp>
+#include <r2_interfaces/action/arm_action.hpp>
+#include <r2_interfaces/action/suspension_control.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 
+#include <chrono>
+#include <mutex>
 #include <string>
 
 namespace r2_bt
@@ -17,7 +23,8 @@ namespace r2_bt
  *   - Align 与 ArmAction 串行（先到位再抓）
  *   - 悬挂并行: SuspensionControl 与 Align 同时进行
  *
- * 当前版本: 完整计算 + 日志，action 调用处标记 TODO
+ * 悬挂调用: 使用 rclcpp_action::Client<SuspensionControl> 异步发送 goal，
+ *   参考 r2_hardware SuspensionActionServer（原 active_suspension_control 状态机）。
  */
 class MeilinFetch : public BT::StatefulActionNode
 {
@@ -33,16 +40,49 @@ public:
 private:
   BT::NodeStatus drive();
 
-  // ---- 模拟 action 状态 ----
-  enum class ActionState { IDLE, ACTIVE, DONE };
-  void startAction(const std::string& name);
+  // ---- 微调 + 机械臂 Action Client ----
+  enum class ActionState { IDLE, ACTIVE, DONE, FAILED };
+  void sendAlignGoal();
+  void sendArmGoal();
   bool isActionDone(const std::string& name) const;
+  bool isActionActive(const std::string& name) const;
+  bool isActionFailed(const std::string& name) const;
+  void failActiveActionIfTimedOut(const std::string& name);
   bool allActionsDone() const;
   void resetActions();
 
-  ActionState align_state_       = ActionState::IDLE;
-  ActionState suspension_state_  = ActionState::IDLE;
-  ActionState arm_state_         = ActionState::IDLE;
+  ActionState align_state_ = ActionState::IDLE;
+  ActionState arm_state_   = ActionState::IDLE;
+  std::string align_message_;
+  std::string arm_message_;
+  std::mutex align_mutex_;
+  std::mutex arm_mutex_;
+
+  using AlignAction = action_of_motion_interfaces::action::MoveToPose;
+  using AlignGoalHandle = rclcpp_action::ClientGoalHandle<AlignAction>;
+  using ArmActionT = r2_interfaces::action::ArmAction;
+  using ArmGoalHandle = rclcpp_action::ClientGoalHandle<ArmActionT>;
+
+  rclcpp_action::Client<AlignAction>::SharedPtr align_client_;
+  std::shared_ptr<AlignGoalHandle> align_goal_handle_;
+  rclcpp_action::Client<ArmActionT>::SharedPtr arm_client_;
+  std::shared_ptr<ArmGoalHandle> arm_goal_handle_;
+  std::chrono::steady_clock::time_point align_start_time_;
+  std::chrono::steady_clock::time_point arm_start_time_;
+
+  // ---- 悬挂 Action Client（真实异步调用）----
+  using SuspensionAction = r2_interfaces::action::SuspensionControl;
+  using SuspensionGoalHandle = rclcpp_action::ClientGoalHandle<SuspensionAction>;
+
+  rclcpp_action::Client<SuspensionAction>::SharedPtr suspension_client_;
+  std::shared_ptr<SuspensionGoalHandle> suspension_goal_handle_;
+  bool suspension_goal_done_ = false;
+  BT::NodeStatus suspension_result_ = BT::NodeStatus::FAILURE;
+  std::string suspension_message_;
+  std::mutex suspension_mutex_;
+
+  /// 发送悬挂 goal（仅在 suspension_mode_ != 0 时调用）
+  void sendSuspensionGoal();
 
   // ---- 阶段 ----
   enum class Phase { START, WAIT_PHASE1, START_ARM, WAIT_ARM, DONE };
@@ -60,7 +100,9 @@ private:
   double grasp_x_ = 0.0;
   double grasp_y_ = 0.0;
   double abs_height_diff_ = 0.0;
-  int suspension_mode_ = 0;
+  int suspension_mode_ = 0;          // 0=无需, 3=MODE_DIRECT（Fetch 高度调整不走传感器状态机）
+  int suspension_direction_ = 0;
+  double suspension_target_height_ = 30.0;  // MODE_DIRECT 的绝对目标高度 (mm)
 };
 
 }  // namespace r2_bt

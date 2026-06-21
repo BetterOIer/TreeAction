@@ -351,7 +351,15 @@ class SuspensionActionServer(Node):
         return val
 
     def _get_v_distance_safe(self, v_idx, default=999.0):
-        """获取虚拟方向上的 TOF 距离，NaN 时返回默认值（用于比较）"""
+        """获取虚拟方向上的 TOF 距离，NaN 时返回默认值。
+
+        注意: _get_v_distance_safe 仅用于状态机内部高度/距离判断，
+        NaN 时将比较委托给默认值。默认值选择需匹配比较语义:
+        - v < threshold 判断: 使用大默认值 (999.0)，NaN 时不会误触发
+        - v > threshold 判断: 使用小默认值 (0.0)，NaN 时不会误触发
+        - IDLE 状态的升降触发条件直接使用 _get_v_distance，利用 NaN 比较
+          总是返回 False 的特性保证安全。
+        """
         val = self._get_v_distance(v_idx)
         if math.isnan(val):
             return default
@@ -377,21 +385,22 @@ class SuspensionActionServer(Node):
         prev_state = self.current_state
 
         if state == State.IDLE:
-            idle_v0_dist = self._get_v_distance_safe(0, default=999.0)
-            idle_v1_dist = self._get_v_distance_safe(1, default=999.0)
-            # NaN 时不触发条件（v1_dist 用大默认值，v0_dist 用大默认值）
+            # 参考 active_suspension_control: 使用 _get_v_distance 直接获取，
+            # NaN 时比较返回 False，不会误触发升降（安全侧）
+            idle_v0_dist = self._get_v_distance(0)
+            idle_v1_dist = self._get_v_distance(1)
             cond_up = idle_v1_dist < 200
             cond_down = idle_v0_dist > 200
 
             self._idle_debug_counter += 1
             if self._idle_debug_counter % 50 == 0:
-                v0_raw = self._get_v_distance(0)
-                v1_raw = self._get_v_distance(1)
                 self.get_logger().info(
                     f'状态0: 方向={self.current_direction.name}, '
-                    f'v0_dist={v0_raw:.1f if not math.isnan(v0_raw) else "NaN"}, '
-                    f'v1_dist={v1_raw:.1f if not math.isnan(v1_raw) else "NaN"}, '
-                    f'上升条件={cond_up}, 下降条件={cond_down}'
+                    f'v0_dist={idle_v0_dist:.1f if not math.isnan(idle_v0_dist) else "NaN"}, '
+                    f'v1_dist={idle_v1_dist:.1f if not math.isnan(idle_v1_dist) else "NaN"}, '
+                    f'上升条件={cond_up}, 下降条件={cond_down}, '
+                    f'上升稳定计数={self._stable_counters.get("idle_to_up", 0)}, '
+                    f'下降稳定计数={self._stable_counters.get("idle_to_down", 0)}'
                 )
 
             if self._is_stable(cond_up, 'idle_to_up'):

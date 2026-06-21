@@ -26,6 +26,9 @@ struct MeilinConfig
   double align_timeout_sec = 30.0;
   double suspension_timeout_sec = 10.0;
   double arm_timeout_sec = 30.0;
+  double suspension_normal_height = 30.0;  // 正常行驶悬挂高度 (mm)，即 H_INIT
+  double pose_timeout_sec = 1.0;
+  double cell_center_tolerance = 0.15;
   int rows = 6;
   int cols = 3;
 };
@@ -78,6 +81,16 @@ inline std::pair<double, double> meilin_grid_to_world(
     cfg.grid_origin_x + static_cast<double>(row) * cfg.grid_size,
     cfg.grid_origin_y + static_cast<double>(col) * cfg.grid_size
   };
+}
+
+/// world/map → nearest grid center
+inline bool meilin_world_to_grid(
+    double x, double y, const MeilinConfig& cfg, int& row, int& col)
+{
+  if (cfg.grid_size <= 0.0) return false;
+  row = static_cast<int>(std::lround((x - cfg.grid_origin_x) / cfg.grid_size));
+  col = static_cast<int>(std::lround((y - cfg.grid_origin_y) / cfg.grid_size));
+  return row >= 0 && row < cfg.rows && col >= 0 && col < cfg.cols;
 }
 
 /// 判断是否相邻

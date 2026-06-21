@@ -1,6 +1,7 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <behaviortree_cpp/bt_factory.h>
 #include <behaviortree_cpp/loggers/groot2_publisher.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <nlohmann/json.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
@@ -64,6 +65,10 @@ public:
     declare_parameter("meilin_default_align_timeout", 30.0);
     declare_parameter("meilin_default_suspension_timeout", 10.0);
     declare_parameter("meilin_default_grasp_timeout", 30.0);
+    declare_parameter("meilin_suspension_normal_height", 30.0);  // 正常行驶悬挂高度 (mm)
+    declare_parameter("meilin_pose_topic", "/transformed/pose");
+    declare_parameter("meilin_pose_timeout_sec", 1.0);
+    declare_parameter("meilin_cell_center_tolerance", 0.15);
 
     groot2_port_ = static_cast<unsigned>(get_parameter("groot2_port").as_int());
     double tick_freq = get_parameter("tick_frequency").as_double();
@@ -120,6 +125,9 @@ public:
     meilin_cfg->align_timeout_sec = meilin_default_align_timeout_;
     meilin_cfg->suspension_timeout_sec = meilin_default_suspension_timeout_;
     meilin_cfg->arm_timeout_sec = meilin_default_grasp_timeout_;
+    meilin_cfg->suspension_normal_height = meilin_suspension_normal_height_;
+    meilin_cfg->pose_timeout_sec = meilin_pose_timeout_sec_;
+    meilin_cfg->cell_center_tolerance = meilin_cell_center_tolerance_;
     meilin_cfg->rows = meilin_rows_;
     meilin_cfg->cols = meilin_cols_;
     blackboard_->set("meilin_config", meilin_cfg);
@@ -139,6 +147,12 @@ public:
     blackboard_->set("meilin_current_height", meilin_initial_height_);
     blackboard_->set("meilin_current_yaw", meilin_initial_yaw_);
     blackboard_->set("meilin_pose_is_cell_center", true);
+    blackboard_->set("meilin_suspension_offset", 0.0);  // 悬挂相对 H_INIT 的偏移量 (mm)
+    blackboard_->set("meilin_pose_received", false);
+    blackboard_->set("meilin_pose_x", 0.0);
+    blackboard_->set("meilin_pose_y", 0.0);
+    blackboard_->set("meilin_pose_yaw", 0.0);
+    blackboard_->set("meilin_pose_last_update_sec", 0.0);
 
     // 加载比赛配置（PrepareArea/FinalArea 的固定参数）
     if (!match_config_.empty())
@@ -159,6 +173,9 @@ public:
     mf_action_sub_ = create_subscription<std_msgs::msg::Float32MultiArray>(
         mf_action_topic_, rclcpp::QoS(1).reliable().transient_local(),
         std::bind(&BtEngineNode::mf_action_callback, this, std::placeholders::_1));
+    meilin_pose_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
+        meilin_pose_topic_, rclcpp::QoS(10),
+        std::bind(&BtEngineNode::meilin_pose_callback, this, std::placeholders::_1));
 
     build_fixed_tree();
 
@@ -169,9 +186,9 @@ public:
 
     RCLCPP_INFO(get_logger(),
                 "BT Engine started: tick=%.1fHz, groot2_port=%u, segment_topic=%s, "
-                "mf_action_topic=%s, tree_file=%s, match_config=%s",
+                "mf_action_topic=%s, meilin_pose_topic=%s, tree_file=%s, match_config=%s",
                 tick_freq, groot2_port_, segment_topic_.c_str(),
-                mf_action_topic_.c_str(), tree_file_.c_str(),
+                mf_action_topic_.c_str(), meilin_pose_topic_.c_str(), tree_file_.c_str(),
                 match_config_.empty() ? "(none)" : match_config_.c_str());
   }
 
@@ -209,6 +226,13 @@ private:
     return 0;
   }
 
+  static double yaw_from_quaternion(const geometry_msgs::msg::Quaternion& q)
+  {
+    const double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
+    const double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+    return r2_bt::meilin_normalize_angle(std::atan2(siny_cosp, cosy_cosp));
+  }
+
   // =========================================================================
   // 梅林区参数加载
   // =========================================================================
@@ -229,6 +253,12 @@ private:
         get_parameter("meilin_default_suspension_timeout").as_double();
     meilin_default_grasp_timeout_ =
         get_parameter("meilin_default_grasp_timeout").as_double();
+    meilin_suspension_normal_height_ =
+        get_parameter("meilin_suspension_normal_height").as_double();
+    meilin_pose_topic_ = get_parameter("meilin_pose_topic").as_string();
+    meilin_pose_timeout_sec_ = get_parameter("meilin_pose_timeout_sec").as_double();
+    meilin_cell_center_tolerance_ =
+        get_parameter("meilin_cell_center_tolerance").as_double();
 
     const auto origin = get_parameter("meilin_grid_origin").as_double_array();
     if (origin.size() >= 2)
@@ -646,6 +676,20 @@ private:
   }
 
   // =========================================================================
+  // /transformed/pose 回调（map 系 base_link 位姿）
+  // =========================================================================
+
+  void meilin_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+  {
+    const auto& pose = msg->pose;
+    blackboard_->set("meilin_pose_received", true);
+    blackboard_->set("meilin_pose_x", pose.position.x);
+    blackboard_->set("meilin_pose_y", pose.position.y);
+    blackboard_->set("meilin_pose_yaw", yaw_from_quaternion(pose.orientation));
+    blackboard_->set("meilin_pose_last_update_sec", now().seconds());
+  }
+
+  // =========================================================================
   // /mf_action_seq 回调
   // =========================================================================
 
@@ -980,11 +1024,13 @@ private:
 
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr segment_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr mf_action_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr meilin_pose_sub_;
   rclcpp::TimerBase::SharedPtr tick_timer_;
 
   unsigned groot2_port_ = 1667;
   std::string segment_topic_;
   std::string mf_action_topic_;
+  std::string meilin_pose_topic_;
   std::string tree_file_;
   std::string match_config_;
 
@@ -1005,6 +1051,9 @@ private:
   double meilin_default_align_timeout_ = 30.0;
   double meilin_default_suspension_timeout_ = 10.0;
   double meilin_default_grasp_timeout_ = 30.0;
+  double meilin_suspension_normal_height_ = 30.0;  // 正常行驶悬挂高度 (mm)，即 H_INIT
+  double meilin_pose_timeout_sec_ = 1.0;
+  double meilin_cell_center_tolerance_ = 0.15;
   uint64_t meilin_plan_counter_ = 0;
 };
 

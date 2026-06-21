@@ -53,6 +53,11 @@ def generate_launch_description():
         default_value='/mf_action_seq',
         description='接收梅林 move/fetch Float32MultiArray 的 ROS2 Topic')
 
+    meilin_pose_topic_arg = DeclareLaunchArgument(
+        'meilin_pose_topic',
+        default_value='/transformed/pose',
+        description='梅林 move 使用的 map 系 base_link 定位 PoseStamped Topic')
+
     return LaunchDescription([
         tree_file_arg,
         match_config_arg,
@@ -60,6 +65,7 @@ def generate_launch_description():
         tick_frequency_arg,
         segment_topic_arg,
         mf_action_topic_arg,
+        meilin_pose_topic_arg,
 
         # ---- 仿真: 里程计模拟器 ----
         Node(
@@ -117,6 +123,7 @@ def generate_launch_description():
                 'tick_frequency': LaunchConfiguration('tick_frequency'),
                 'segment_topic': LaunchConfiguration('segment_topic'),
                 'mf_action_topic': LaunchConfiguration('mf_action_topic'),
+                'meilin_pose_topic': LaunchConfiguration('meilin_pose_topic'),
             }],
         ),
 

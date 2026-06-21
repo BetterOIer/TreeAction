@@ -93,7 +93,9 @@ grasp_x / grasp_y / grasp_yaw
 current_row / current_col / current_height / current_yaw / pose_is_cell_center
 ```
 
-这些状态只做格子逻辑判断，不替代真实定位。action 成功后更新，失败不更新。
+这些状态只做格子逻辑判断，不替代真实定位。梅林 `move` 优先从 `/transformed/pose`
+读取 `geometry_msgs/PoseStamped`，该话题表示 map 坐标系下机器人中心/base_link 位姿；
+定位未收到或超时时才降级使用上述状态。action 成功后更新状态，失败不更新。
 
 ## 4. move 执行
 
@@ -103,6 +105,10 @@ current_row / current_col / current_height / current_yaw / pose_is_cell_center
 
 ```text
 target_pose = grid_to_world(row, col, yaw)
+current_pose = /transformed/pose
+current_row/current_col = world_to_nearest_grid(current_pose.x, current_pose.y)
+current_yaw = current_pose.yaw
+pose_is_cell_center = distance_to_grid_center <= cell_center_tolerance
 height_diff = target_height - current_height
 
 如果当前不在格子中心:
