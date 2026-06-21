@@ -330,20 +330,22 @@ class SuspensionActionServer(Node):
         return 'NaN'
 
     def update_virtual_mapping(self):
+        # Legacy wheel IDs were remapped on the hardware side:
+        # old 1/2/3/4 -> new 4/2/1/3. Indices below are zero-based.
         if self.current_direction == Direction.FORWARD:
-            self.v_wheels_idx = [2, 1, 0, 3]
+            self.v_wheels_idx = [0, 1, 3, 2]
             self.v_pe_idx = [0, 1, 3, 2]
             self.v_distances_idx = [0, 1, 5, 4]
         elif self.current_direction == Direction.LEFT:
-            self.v_wheels_idx = [0, 2, 3, 1]
+            self.v_wheels_idx = [3, 0, 2, 1]
             self.v_pe_idx = [1, 2, 0, 3]
             self.v_distances_idx = [2, 3, 7, 6]
         elif self.current_direction == Direction.RIGHT:
-            self.v_wheels_idx = [1, 3, 2, 0]
+            self.v_wheels_idx = [1, 2, 0, 3]
             self.v_pe_idx = [3, 0, 2, 1]
             self.v_distances_idx = [6, 7, 3, 2]
         elif self.current_direction == Direction.BACKWARD:
-            self.v_wheels_idx = [0, 3, 2, 1]
+            self.v_wheels_idx = [3, 2, 0, 1]
             self.v_pe_idx = [2, 3, 1, 0]
             self.v_distances_idx = [4, 5, 1, 0]
 
