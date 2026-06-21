@@ -97,7 +97,7 @@ public:
     factory_.registerNodeType<r2_bt::ForEachSegment>("ForEachSegment");
     factory_.registerNodeType<r2_bt::RetrySegment>("RetrySegment");
     factory_.registerNodeType<r2_bt::SetDebugStatus>("SetDebugStatus");
-    factory_.registerNodeType<BT::RepeatNode>("Repeat");
+    // factory_.registerNodeType<BT::RepeatNode>("Repeat");
 
     // === 初始化 blackboard ===
     blackboard_ = BT::Blackboard::create();

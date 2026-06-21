@@ -74,13 +74,9 @@ BT::NodeStatus MoveToPose::onStart()
   }
 
   auto goal = MoveToPoseAction::Goal();
-  goal.target_pose.header.frame_id = frame_id;
-  goal.target_pose.header.stamp = node_->now();
-  goal.target_pose.pose.position.x = target_x;
-  goal.target_pose.pose.position.y = target_y;
-  goal.target_pose.pose.orientation.w = std::cos(target_yaw * 0.5);
-  goal.target_pose.pose.orientation.z = std::sin(target_yaw * 0.5);
-  goal.max_speed = static_cast<float>(max_speed);
+  goal.x = target_x;
+  goal.y = target_y;
+  goal.yaw_deg = target_yaw * 180.0 / M_PI;
 
   if (!action_client_)
   {
@@ -89,7 +85,7 @@ BT::NodeStatus MoveToPose::onStart()
 
   if (!action_client_->action_server_is_ready())
   {
-    error_msg_ = "MoveToPose action server not available";
+    error_msg_ = "Motion_control_accurate /move_to_pose action server not available";
     RCLCPP_ERROR(node_->get_logger(), "[MoveToPose] %s", error_msg_.c_str());
     return BT::NodeStatus::FAILURE;
   }
@@ -112,7 +108,8 @@ BT::NodeStatus MoveToPose::onStart()
     [this](const GoalHandle::WrappedResult& result) {
       std::lock_guard<std::mutex> lock(mutex_);
       goal_done_ = true;
-      result_status_ = (result.code == rclcpp_action::ResultCode::SUCCEEDED && result.result->success)
+      result_status_ = (result.code == rclcpp_action::ResultCode::SUCCEEDED &&
+                        result.result && result.result->success)
                            ? BT::NodeStatus::SUCCESS
                            : BT::NodeStatus::FAILURE;
       if (result_status_ == BT::NodeStatus::FAILURE && result.result)
@@ -127,8 +124,9 @@ BT::NodeStatus MoveToPose::onStart()
   action_client_->async_send_goal(goal, send_goal_options);
 
   RCLCPP_INFO(node_->get_logger(),
-              "[MoveToPose] Goal sent: x=%.3f y=%.3f yaw=%.3f speed=%.2f",
-              target_x, target_y, target_yaw, max_speed);
+              "[MoveToPose] Motion_control_accurate goal sent: x=%.3f y=%.3f yaw_deg=%.1f "
+              "frame=%s speed_port=%.2f",
+              target_x, target_y, goal.yaw_deg, frame_id.c_str(), max_speed);
 
   return BT::NodeStatus::RUNNING;
 }

@@ -16,6 +16,8 @@ from std_msgs.msg import Float32MultiArray, Int32
 from enum import Enum
 import collections
 import math
+import time
+from rclpy.executors import MultiThreadedExecutor
 
 
 class State(Enum):
@@ -48,10 +50,10 @@ class SuspensionActionServer(Node):
 
         # 参数配置
         self.DEFAULT_LIFT_LOW = 205.0
-        self.DEFAULT_LIFT_HIGH = 400.0
+        self.DEFAULT_LIFT_HIGH = 410.0
         self.H_LIFT_LOW = self.DEFAULT_LIFT_LOW
         self.H_LIFT_HIGH = self.DEFAULT_LIFT_HIGH
-        self.H_INIT = 30.0
+        self.H_INIT = 20.0
         self.HEIGHT_TOLERANCE = 20.0
 
         # 状态变量
@@ -83,6 +85,7 @@ class SuspensionActionServer(Node):
         self._active_goal = False
         self._active_mode = 0
         self._requested_height = 0.0
+        self._known_step_height = False
         self._sequence_done = False
 
         # 传感器订阅
@@ -135,13 +138,14 @@ class SuspensionActionServer(Node):
         self._active_goal = False
         self._active_mode = 0
         self._requested_height = 0.0
+        self._known_step_height = False
         self._sequence_done = False
         self.current_state = State.IDLE
         self.wheel_heights_target = [self.H_INIT] * 4
         self._stable_counters.clear()
         return CancelResponse.ACCEPT
 
-    async def _execute_callback(self, goal_handle: ServerGoalHandle):
+    def _execute_callback(self, goal_handle: ServerGoalHandle):
         mode = int(goal_handle.request.mode)
         direction = goal_handle.request.direction
         height = float(goal_handle.request.height)
@@ -153,11 +157,14 @@ class SuspensionActionServer(Node):
             elif height < 0.0:
                 mode = 2
 
-        self._requested_height = abs(height)
-        if self._requested_height > 0.0:
+        requested_step_height = abs(height)
+        self._known_step_height = mode != 3 and requested_step_height > 0.0
+        if self._known_step_height:
+            self._requested_height = self._map_step_height_to_prepare_height(requested_step_height)
             self.H_LIFT_LOW = self._requested_height
             self.H_LIFT_HIGH = self._requested_height
         else:
+            self._requested_height = 0.0
             self.H_LIFT_LOW = self.DEFAULT_LIFT_LOW
             self.H_LIFT_HIGH = self.DEFAULT_LIFT_HIGH
 
@@ -187,6 +194,7 @@ class SuspensionActionServer(Node):
                 self._active_goal = False
                 self._active_mode = 0
                 self._requested_height = 0.0
+                self._known_step_height = False
                 self._sequence_done = False
                 self.current_state = State.IDLE
                 self.wheel_heights_target = [self.H_INIT] * 4
@@ -218,6 +226,7 @@ class SuspensionActionServer(Node):
                 self._active_goal = False
                 self._active_mode = 0
                 self._requested_height = 0.0
+                self._known_step_height = False
                 self._sequence_done = False
                 self.current_state = State.IDLE
                 self.wheel_heights_target = [self.H_INIT] * 4
@@ -233,6 +242,7 @@ class SuspensionActionServer(Node):
                 self._active_goal = False
                 self._active_mode = 0
                 self._requested_height = 0.0
+                self._known_step_height = False
                 return SuspensionControl.Result(
                     success=True,
                     message='Direct height set',
@@ -246,6 +256,7 @@ class SuspensionActionServer(Node):
                 self._active_goal = False
                 self._active_mode = 0
                 self._requested_height = 0.0
+                self._known_step_height = False
                 return SuspensionControl.Result(
                     success=True,
                     message='Sequence complete',
@@ -253,22 +264,19 @@ class SuspensionActionServer(Node):
                     elapsed_sec=float(elapsed_sec),
                 )
 
-            await self._sleep_async(0.01)
+            time.sleep(0.01)
 
         goal_handle.abort()
         self._active_goal = False
         self._active_mode = 0
         self._requested_height = 0.0
+        self._known_step_height = False
         return SuspensionControl.Result(
             success=False,
             message='Node shutdown',
             final_state=self.current_state.value,
             elapsed_sec=float((self.get_clock().now() - start_time).nanoseconds / 1e9),
         )
-
-    async def _sleep_async(self, duration_sec):
-        import asyncio
-        await asyncio.sleep(duration_sec)
 
     # ---- 传感器回调 ----
     def dist_cb(self, msg):
@@ -309,6 +317,17 @@ class SuspensionActionServer(Node):
         else:
             self._stable_counters[key] = 0
         return False
+
+    def _map_step_height_to_prepare_height(self, step_height):
+        """Map a known stair height to the suspension preparation height."""
+        if step_height <= 300.0:
+            return 205.0
+        return 410.0
+
+    def _format_distance(self, value):
+        if math.isfinite(value):
+            return f'{value:.1f}'
+        return 'NaN'
 
     def update_virtual_mapping(self):
         if self.current_direction == Direction.FORWARD:
@@ -396,8 +415,8 @@ class SuspensionActionServer(Node):
             if self._idle_debug_counter % 50 == 0:
                 self.get_logger().info(
                     f'状态0: 方向={self.current_direction.name}, '
-                    f'v0_dist={idle_v0_dist:.1f if not math.isnan(idle_v0_dist) else "NaN"}, '
-                    f'v1_dist={idle_v1_dist:.1f if not math.isnan(idle_v1_dist) else "NaN"}, '
+                    f'v0_dist={self._format_distance(idle_v0_dist)}, '
+                    f'v1_dist={self._format_distance(idle_v1_dist)}, '
                     f'上升条件={cond_up}, 下降条件={cond_down}, '
                     f'上升稳定计数={self._stable_counters.get("idle_to_up", 0)}, '
                     f'下降稳定计数={self._stable_counters.get("idle_to_down", 0)}'
@@ -414,7 +433,10 @@ class SuspensionActionServer(Node):
             self.wheel_heights_target = [self.target_height] * 4
             cond = self.check_height_reached([v_0, v_1, v_2, v_3], self.target_height)
             if self._is_stable(cond, 'up1_height', threshold=2):
-                self.current_state = State.UP_2_LIFT
+                if self._known_step_height:
+                    self.current_state = State.UP_3_FRONT_DOCK
+                else:
+                    self.current_state = State.UP_2_LIFT
 
         elif state == State.UP_2_LIFT:
             v1_dist = self._get_v_distance_safe(1, default=999.0)
@@ -525,11 +547,14 @@ class SuspensionActionServer(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SuspensionActionServer()
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 

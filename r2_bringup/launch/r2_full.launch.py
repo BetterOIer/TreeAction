@@ -16,8 +16,9 @@ r2_full.launch.py — 真实机器人全系统启动
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -77,12 +78,19 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ---- Action Server: 底盘导航 ----
+        # ---- Action Server: 底盘微调 (Motion_control_accurate) ----
         Node(
-            package='r2_hardware',
-            executable='move_to_pose_action_server',
-            name='move_to_pose_action_server',
+            package='action_of_motion',
+            executable='motion_action_node',
+            name='motion_action_node',
             output='screen',
+            parameters=[
+                PathJoinSubstitution([
+                    FindPackageShare('action_of_motion'),
+                    'config',
+                    'param.yaml',
+                ]),
+            ],
         ),
 
         # ---- Action Server: 主动悬挂 ----

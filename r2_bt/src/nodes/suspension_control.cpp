@@ -11,7 +11,7 @@ SuspensionControl::SuspensionControl(const std::string& name, const BT::NodeConf
 BT::PortsList SuspensionControl::providedPorts()
 {
   return {
-    BT::InputPort<int>("mode", 0, "0=AUTO, 1=CLIMB_UP, 2=CLIMB_DOWN, 3=RECOVER"),
+    BT::InputPort<int>("mode", 0, "0=AUTO, 1=CLIMB_UP, 2=CLIMB_DOWN, 3=DIRECT"),
     BT::InputPort<int>("direction", 0, "0=FORWARD, 1=LEFT, 2=RIGHT, 3=BACKWARD"),
     BT::InputPort<double>("height", 0.0, "Stair height; 0 means auto/default"),
     BT::InputPort<double>("timeout_sec", 30.0, "Abort action after this many seconds"),

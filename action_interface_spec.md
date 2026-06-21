@@ -73,7 +73,7 @@
 |------|------|------|------|
 | `mode` | `uint8` | 是 | 工作模式 |
 | `direction` | `uint8` | 是 | 机器人相对台阶的运动方向 |
-| `height` | `float32` | 是 | 台阶高度 (mm)；正=上台阶，负=下台阶，0=AUTO 自动判断 |
+| `height` | `float32` | 是 | 台阶高度 (mm)；正=上台阶，负=下台阶，0=AUTO 自动判断；已知 200/400 时直接映射准备高度 |
 | `timeout_sec` | `float32` | 是 | 超时秒数，超时后 Action 中止 |
 
 #### mode 枚举
@@ -120,19 +120,19 @@
 -------|------|------
 `0` | `IDLE` | 空闲
 **上台阶** | |
-`10` | `UP_1_PREPARE` | 四轮升到 lift 高度
-`11` | `UP_2_LIFT` | 判断台阶高度，决定是否继续升高
+`10` | `UP_1_PREPARE` | 四轮升到准备高度；已知 200mm→205mm，已知 400mm→410mm
+`11` | `UP_2_LIFT` | 仅未知高度时用距离判断台阶高度，决定是否继续升高
 `12` | `UP_3_FRONT_DOCK` | 等待前轮距离 < 80mm（接近台阶）
 `13` | `UP_4_RETRACT_FRONT` | 前两轮缩回到 5mm
 `14` | `UP_5_FRONT_LAND` | 等待前轮光电触发 → 前轮着台阶
 `15` | `UP_6_SIDE_DOCK_RETRACT_REAR` | 等待侧轮光电触发 → 中轮着台阶 → 后轮缩回
 `16` | `UP_7_REAR_LAND` | 等待后轮光电触发 → 后轮着台阶
-`17` | `UP_8_RECOVER` | 四轮恢复到 30mm → IDLE
+`17` | `UP_8_RECOVER` | 四轮恢复到 20mm → IDLE
 **下台阶** | |
 `20` | `DOWN_1_PREPARE` | 前两轮抬升至目标高度
 `21` | `DOWN_2_FRONT_HOVER_LAND` | 中轮抬升 → 前轮悬空着陆
 `22` | `DOWN_3_REAR_HOVER_LAND` | 后轮距离 > 200mm 判断已下台阶
-`23` | `DOWN_4_RECOVERY` | 四轮恢复到 30mm → IDLE
+`23` | `DOWN_4_RECOVERY` | 四轮恢复到 20mm → IDLE
 
 ### 2.6 BT 节点端口
 
@@ -179,6 +179,7 @@ BT Node (C++)                               Action Server (Python)
 - `/t0x0102_action`：四轮目标高度 `[FL, FR, RL, RR]`，单位 mm，100Hz 发布
 - `/r0x0201`：下位机状态回传，包含光电开关 `[PE0,PE1,PE2,PE3]` + 当前轮高 `[H0,H1,H2,H3]`
 - `/sensor_distances`：8 路 TOF 距离传感器数据
+- 已知 `height` 时，Action Server 不再依赖 TOF 判定 200/400 台阶高度；上 200mm 台阶直接准备到 205mm，上 400mm 台阶直接准备到 410mm，动作结束恢复到 20mm。
 
 ---
 
@@ -547,7 +548,6 @@ BT 引擎收到后解析 JSON → 填充 `Segment` 结构体 → 入队 `Segment
 **备注**: SpearAction 已完整实现。Segment 类型已从 `PICK_SPEAR_HEAD`/`DOCK_SPEAR` 更新为 `SPEAR_PREP`/`SPEAR_GRASP`/`ALIGN`/`DOCK`。
 
 **待实现**:
-- `Align` Action（独立精调底盘控制，当前由 MoveToPose 以低速模式代替）
 - DOCK segment 中等待 R1 到位信号的 Condition 节点
 
 ## 附录 B：相关文件索引
@@ -557,7 +557,7 @@ BT 引擎收到后解析 JSON → 填充 `Segment` 结构体 → 入队 `Segment
 | `r2_interfaces/action/SuspensionControl.action` | Suspension Action 接口定义 |
 | `r2_interfaces/action/ArmAction.action` | Arm Action 接口定义 |
 | `r2_interfaces/action/SpearAction.action` | Spear Action 接口定义 |
-| `r2_interfaces/action/MoveToPose.action` | MoveToPose Action 接口定义 |
+| `Motion_control_accurate/src/action_of_motion_interfaces/action/MoveToPose.action` | Motion_control_accurate MoveToPose Action 接口定义 |
 | `r2_bt/include/r2_bt/nodes/actions/suspension_control.hpp` | Suspension BT 节点头文件 |
 | `r2_bt/include/r2_bt/nodes/actions/arm_action.hpp` | Arm BT 节点头文件 |
 | `r2_bt/include/r2_bt/nodes/actions/spear_action.hpp` | Spear BT 节点头文件 |
@@ -569,7 +569,7 @@ BT 引擎收到后解析 JSON → 填充 `Segment` 结构体 → 入队 `Segment
 | `r2_hardware/r2_hardware/action_servers/suspension_action_server.py` | Suspension Action Server |
 | `r2_hardware/r2_hardware/action_servers/arm_action_server.py` | Arm Action Server |
 | `r2_hardware/r2_hardware/action_servers/spear_action_server.py` | Spear Action Server |
-| `r2_hardware/r2_hardware/action_servers/move_to_pose_server.py` | MoveToPose Action Server |
+| `Motion_control_accurate/src/action_of_motion/action_of_motion/motion_action_node.py` | Motion_control_accurate MoveToPose Action Server |
 | `ares_usb/ares_usb_comm_design.md` | USB 通信协议详细设计 |
 | `design.md` | 全区域流程设计和 SpearAction 语义定义 |
 | `r2_bt/trees/full_match.xml` | 全赛程 BT XML 树 |
